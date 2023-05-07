@@ -6,7 +6,7 @@
 // Adafruit Arduino Datalogging Shield: https://learn.adafruit.com/adafruit-data-logger-shield/overview
 // Light & Temp Logger: https://github.com/adafruit/Light-and-Temp-logger
 // CJMCU-811 CO2 Sensor board with CCS811 air quality sensor: https://iotspace.dev/arduino-co2-sensor-im-eigenbau-ccs811-sensor/
-// BME280 Humidity/Temp/Barometer Sensor https://learn.adafruit.com/adafruit-bme280-humidity-barometric-pressure-temperature-sensor-breakout/arduino-test
+// BME280 Humidity/Temperature/Barometer Sensor https://learn.adafruit.com/adafruit-bme280-humidity-barometric-pressure-temperature-sensor-breakout/arduino-test
 // SSD1306 OLED Display 0,96" 5V I2C 128x64Pixel  https://learn.adafruit.com/monochrome-oled-breakouts/arduino-library-and-examples 
 //                                                https://draeger-it.blog/fehler-ssd1306-allocation-failed-am-oled-display-beheben/
 // HM3301 Seeed PM2.5 Dust Detection Sensor https://wiki.seeedstudio.com/Grove-Laser_PM2.5_Sensor-HM3301/
@@ -477,7 +477,7 @@ void write_oled()
 #if OLED_ON
   //oled.clear();
   oled.setCursor(0,0);
-  oled.println("--== CLIMAX 2000 ==--");
+  oled.println("--== CLIMAX 2001 ==--");
   oled.print("   ");
   oled.print(data.now.year(), DEC);  
   oled.print("/"); 
@@ -529,7 +529,7 @@ void write_oled()
   oled.print(data.light);*/ 
   oled.print("PM2.5(atm): ");  
   oled.print(data.pm25atm); 
-  oled.print(" ug/m3   ");  
+  oled.print(" ug/m3 ");  
   oled.clearToEOL();
   //oled.println();   
 #endif // OLED_ON 

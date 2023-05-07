@@ -7,3 +7,4 @@ An Arduino based room-climate logger
 - HM3301 Seeed PM2.5 Dust Detection Sensor
 - SSD1306 OLED Display 0,96"
 - LDR Light Sensor
+- Push button to toggle display on/off

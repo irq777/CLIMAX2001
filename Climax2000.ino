@@ -50,6 +50,7 @@
 // the last 10 reads if power is lost but it uses less power and is much faster!
 #define SYNC_INTERVAL 60000 // 60000 mills between calls to flush() - to write data to the card
 uint32_t syncTime = 0; // time of last sync()
+#define CSVSEP ","
 
 #define ECHO_TO_SERIAL   1 // echo data to serial port
 #define WAIT_TO_START    0 // Wait for serial input in setup()
@@ -111,6 +112,7 @@ Adafruit_CCS811 ccs; // I2C 0x5A
 #if BME280_ON
   //BME280 Humidity/Temp/Barometer Sensor
   Adafruit_BME280 bme; // I2C 0x76
+  #define BME_TEMP_OFFSET -0.3 //temperature offset correction
 #endif //BME280_ON
 
 //Seeed PM2.5 Sensor HM3301
@@ -204,7 +206,6 @@ void setup(void)
   //need to correct date/time? set it below, uncomment and run it just once(!)
   //RTC.adjust(DateTime(2023, 3, 12, 11, 15, 0)); //e.g. set RTC to 2023-03-12 11:15:00 (am)
 
-
   // see if the card is present and can be initialized:
   if (!SD.begin(chipSelect)) {
     error("Card failed, or not present");
@@ -266,17 +267,13 @@ void setup(void)
   Serial.println(F("sensor initilized."));
 #endif // BME280_ON  
 
-#if BME280_ON 
-  logfile.println(F("datetime;light;temp;humid;pressure;co2;tvoc;pm1std;pm25std;pm10std;pm1atm;pm25atm;pm10atm"));  
+
+  //logfile.println(F("datetime;light;temp;humid;pressure;co2;tvoc;pm1std;pm25std;pm10std;pm1atm;pm25atm;pm10atm"));  
+  logfile.println(F("datetime" CSVSEP "light" CSVSEP "temp" CSVSEP "humid" CSVSEP "pressure" CSVSEP "co2" CSVSEP "tvoc" CSVSEP "pm1std" CSVSEP "pm25std" CSVSEP "pm10std" CSVSEP "pm1atm" CSVSEP "pm25atm" CSVSEP "pm10atm"));  
 #if ECHO_TO_SERIAL
   Serial.println(F("datetime,light,temp,humid,pressure,co2,tvoc,pm1std,pm25std,pm10std,pm1atm,pm25atm,pm10atm"));
 #endif //ECHO_TO_SERIAL
-#else //BME280_ON
-  logfile.println(F("datetime,light,co2,tvoc"));  
-#if ECHO_TO_SERIAL
-  Serial.println(F("datetime,light,co2,tvoc"));
-#endif //ECHO_TO_SERIAL
-#endif //BME280_ON
+
 
 #if HM3301_ON
   delay(100);
@@ -324,7 +321,7 @@ bool fetch_data(void)
 
 #if BME280_ON
   data.humid = bme.readHumidity();
-  data.temp = bme.readTemperature();
+  data.temp = bme.readTemperature() + BME_TEMP_OFFSET;
   data.press = bme.readPressure();
   ccs.setEnvironmentalData(data.humid,data.temp); //send enviromnental data to the CSS811 for better compensation
 #else //BME280_ON
@@ -408,40 +405,40 @@ bool log_data(void)
   Serial.print('"');
 #endif //ECHO_TO_SERIAL
 
-  logfile.print(";"); //csv separator   
+  logfile.print(CSVSEP); //csv separator
   logfile.print(data.light);
-  logfile.print(";"); //csv separator
+  logfile.print(CSVSEP); //csv separator
 #if BME280_ON 
   logfile.print(data.temp);
-  logfile.print(";"); //csv separator 
+  logfile.print(CSVSEP); //csv separator 
   logfile.print(data.humid);
-  logfile.print(";"); //csv separator 
+  logfile.print(CSVSEP); //csv separator 
   logfile.print(data.press/100);
-  logfile.print(";"); //csv separator     
+  logfile.print(CSVSEP); //csv separator     
 #endif // BME280_ON  
   logfile.print(data.co2);
-  logfile.print(";"); //csv separator 
+  logfile.print(CSVSEP); //csv separator 
   logfile.print(data.tvoc);
 #if HM3301_ON
-  logfile.print(";");
+  logfile.print(CSVSEP);
   logfile.print(data.pm1std);
-  logfile.print(";"); //csv separator 
+  logfile.print(CSVSEP); //csv separator 
   logfile.print(data.pm25std);
-  logfile.print(";"); //csv separator
+  logfile.print(CSVSEP); //csv separator
   logfile.print(data.pm10std);
-  logfile.print(";"); //csv separator
+  logfile.print(CSVSEP); //csv separator
   logfile.print(data.pm1atm);
-  logfile.print(";"); //csv separator
+  logfile.print(CSVSEP); //csv separator
   logfile.print(data.pm25atm);
-  logfile.print(";"); //csv separator
+  logfile.print(CSVSEP); //csv separator
   logfile.print(data.pm10atm);
-  //logfile.print(";"); //csv separator
+  //logfile.print(CSVSEP); //csv separator
 #endif //HM3301_ON
   logfile.println();
 #if ECHO_TO_SERIAL
   Serial.print(": "); 
   Serial.print(data.light);
-  Serial.print("light,");    
+  Serial.print("LDR,");    
 #if BME280_ON   
   Serial.print(data.temp);
   Serial.print("C,"); 

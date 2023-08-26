@@ -2,14 +2,15 @@
 // This code measures time, temperature, CO2 (ppm) and tvoc (ppb) every minute and log it to a SD-Card in CSV format
 
 // Sources:
-// Dallas DS1820 Sensor: https://create.arduino.cc/projecthub/TheGadgetBoy/ds18b20-digital-temperature-sensor-and-arduino-9cc806 / https://www.arduino.cc/reference/en/libraries/onewire/
-// Adafruit Arduino Datalogging Shield: https://learn.adafruit.com/adafruit-data-logger-shield/overview
-// Light & Temp Logger: https://github.com/adafruit/Light-and-Temp-logger
-// CJMCU-811 CO2 Sensor board with CCS811 air quality sensor: https://iotspace.dev/arduino-co2-sensor-im-eigenbau-ccs811-sensor/
-// BME280 Humidity/Temperature/Barometer Sensor https://learn.adafruit.com/adafruit-bme280-humidity-barometric-pressure-temperature-sensor-breakout/arduino-test
+// Dallas DS1820 sensor: https://create.arduino.cc/projecthub/TheGadgetBoy/ds18b20-digital-temperature-sensor-and-arduino-9cc806 / https://www.arduino.cc/reference/en/libraries/onewire/
+// Adafruit Arduino datalogging shield: https://learn.adafruit.com/adafruit-data-logger-shield/overview
+// Light & Temp logger: https://github.com/adafruit/Light-and-Temp-logger
+// CJMCU-811 CO2/TVOC sensor board with CCS811 air quality sensor: https://iotspace.dev/arduino-co2-sensor-im-eigenbau-ccs811-sensor/
+// BME280 Humidity/Temperature/Barometer sensor https://learn.adafruit.com/adafruit-bme280-humidity-barometric-pressure-temperature-sensor-breakout/arduino-test
 // SSD1306 OLED Display 0,96" 5V I2C 128x64Pixel  https://learn.adafruit.com/monochrome-oled-breakouts/arduino-library-and-examples 
 //                                                https://draeger-it.blog/fehler-ssd1306-allocation-failed-am-oled-display-beheben/
-// HM3301 Seeed PM2.5 Dust Detection Sensor https://wiki.seeedstudio.com/Grove-Laser_PM2.5_Sensor-HM3301/
+// HM3301 Seeed PM2.5 dust detection sensor https://wiki.seeedstudio.com/Grove-Laser_PM2.5_Sensor-HM3301/
+// SCD30 Sensirion CO2/Temperature/Humidity sensor module 
 
 // Libraries:
 // DallasTemperature (Miles Burton)
@@ -20,11 +21,15 @@
 // Adafruit CCS811 Library (Adafruit)
 // Adafruit BME280 Library (Adafruit)
 // Grove - Laser PM2.5 Sensor HM3301 (Seeed Studio)
+// Adafruit SCD30 Library (Adafruit)
 
 // Notes:
 // - Run CCS811 for 20 minutes, before accurate readings are generated
 // - The equivalent CO2 (eCO2) output range for CCS811 is from 400ppm to 8192ppm. Values outside this range are clipped.
 // - Total Volatile Organic Compound (TVOC) output range for CCS811 is from 0ppb to 1187ppb. Values outside this range are clipped.
+// - PM2.5 particle diameter 0,0025 mm or smaller (PM=particulate matter) 
+// - PM10  particle diameter 0,0100 mm or smaller
+// - PM1   particle diameter 0,0010 mm or smaller
 
 /********************************************************************/
 // First we include the libraries
@@ -41,8 +46,9 @@
 #include <OneButton.h>
 #include <Seeed_HM330X.h> //https://github.com/Seeed-Studio/Seeed_PM2_5_sensor_HM3301
 #include <util/parity.h>  //https://wolles-elektronikkiste.de/dcf77-funkuhr
+#include "Adafruit_SCD30.h" //https://github.com/adafruit/Adafruit_SCD30/
 // how many milliseconds between grabbing data and logging it. 1000 ms is once a second
-#define LOG_INTERVAL 60000  // 60000 mills between entries (reduce to take more/faster data)
+#define LOG_INTERVAL 60000 // 60000 mills between entries (reduce to take more/faster data)
 
 // how many milliseconds before writing the logged data permanently to disk
 // set it to the LOG_INTERVAL to write each time (safest)
@@ -104,8 +110,11 @@ File logfile; // the logging file
  /********************************************************************/ 
 #endif // DS1820_ON
 
+#define CCS811_ON 0
+#if CCS811_ON
 //CCS811 air quality sensor (CO2/TVOC)
 Adafruit_CCS811 ccs; // I2C 0x5A
+#endif //CCS811_ON
 
 //BME280 Humidity/Temp/Barometer Sensor
 #define BME280_ON 1
@@ -114,6 +123,12 @@ Adafruit_CCS811 ccs; // I2C 0x5A
   Adafruit_BME280 bme; // I2C 0x76
   #define BME_TEMP_OFFSET -0.3 //temperature offset correction
 #endif //BME280_ON
+
+#define SCD30_ON 1
+#if SCD30_ON
+// Sensirion SCD30 CO2/Temperature/Humidity
+Adafruit_SCD30  scd30; // I2C 0x61
+#endif //SCD30_ON
 
 //Seeed PM2.5 Sensor HM3301
 #define HM3301_ON 1
@@ -249,31 +264,65 @@ void setup(void)
   sensors.begin(); 
 #endif // DS1820_ON
 
+#if CCS811_ON
   //Init CCS811 (CO2) via I2C
   Serial.print(F("Initializing CCS811 sensor..."));
   if(!ccs.begin(0x5A)){
-   Serial.println(F("Could not start sensor. Please check wiring!"));
+   Serial.println(F("Could not start CCS811 sensor, check wiring!"));
    while(1);
   }
   Serial.println(F("sensor initilized."));
+#endif //CCS811_ON
 
 #if BME280_ON  
   //Init BME280 (Humidity/Pressure/Temp) via I2C
   Serial.print(F("Initializing BME280 sensor..."));
   if (!bme.begin(0x76)) {  
-    Serial.println(F("Could not find a valid BME280 sensor, check wiring!"));
+    Serial.println(F("Could not find BME280 sensor, check wiring!"));
     while (1);
   } 
   Serial.println(F("sensor initilized."));
 #endif // BME280_ON  
 
+#if SCD30_ON
+  //Init SCD30 (CO2/Temperature/Humidity)
+  Serial.print(F("Initializing SCD30 sensor..."));
+  if (!scd30.begin()) {
+    Serial.println(F("Failed to find SCD30 chip, check wiring!"));
+    while (1) { delay(10); }
+  }
+  Serial.println(F("sensor initilized."));
+  Serial.print(F("Measurement Interval: "));
+  Serial.print(scd30.getMeasurementInterval());
+  Serial.println(F(" seconds"));
+#endif //SCD30_ON
 
-  //logfile.println(F("datetime;light;temp;humid;pressure;co2;tvoc;pm1std;pm25std;pm10std;pm1atm;pm25atm;pm10atm"));  
-  logfile.println(F("datetime" CSVSEP "light" CSVSEP "temp" CSVSEP "humid" CSVSEP "pressure" CSVSEP "co2" CSVSEP "tvoc" CSVSEP "pm1std" CSVSEP "pm25std" CSVSEP "pm10std" CSVSEP "pm1atm" CSVSEP "pm25atm" CSVSEP "pm10atm"));  
+  //Write data-headers to CSV 
+  logfile.print(F("datetime" CSVSEP "light" CSVSEP "temp" CSVSEP "humid" CSVSEP ));
+#if BME280_ON
+  logfile.print(F("pressure" CSVSEP ));
+#endif //BME280_ON  
+  logfile.print(F("co2" CSVSEP ));
+#if CCS811_ON  
+  logfile.print(F("tvoc" CSVSEP ));
+#endif //CCS811_ON  
+  logfile.print(F("pm1std" CSVSEP "pm25std" CSVSEP "pm10std" CSVSEP "pm1atm" CSVSEP "pm25atm" CSVSEP "pm10atm"));  
+  logfile.println(F(""));
+
 #if ECHO_TO_SERIAL
-  Serial.println(F("datetime,light,temp,humid,pressure,co2,tvoc,pm1std,pm25std,pm10std,pm1atm,pm25atm,pm10atm"));
+  Serial.print(F("datetime,light,temp,humid,"));
+#if BME280_ON
+  Serial.print(F("pressure,"));
+#endif //BME280_ON
+  Serial.print(F("co2,"));
+#if CCS811_ON
+  Serial.print(F("tvoc,"));
+#endif //CCS811_ON
+#if HM3301_ON
+Serial.print(F("pm1std,pm25std,pm10std,pm1atm,pm25atm,pm10atm"));
+#endif //HM3301
+Serial.println(F(""));
 #endif //ECHO_TO_SERIAL
-
 
 #if HM3301_ON
   delay(100);
@@ -288,7 +337,7 @@ void setup(void)
 #endif //#if OLED_ON 
 
 #if OLED_ON
-  delay(1000);
+  delay(2000); // wait a bit longer before fetching data and avoid zero measurements
   oled.clear();
 #endif // OLED_ON 
   currentMillis,lastLogMillis,lastSyncMillis,lastSyncMillis = millis();
@@ -320,14 +369,21 @@ bool fetch_data(void)
   data.light = analogRead(photocellPin); //read light intensity (LDR is nonlinear, so there is no utit for this)
 
 #if BME280_ON
+#if !SCD30_ON //use temp/humid of SCD30 if enabled 
   data.humid = bme.readHumidity();
   data.temp = bme.readTemperature() + BME_TEMP_OFFSET;
+#endif //!SCD30_ON 
   data.press = bme.readPressure();
+#if CCS811_ON
   ccs.setEnvironmentalData(data.humid,data.temp); //send enviromnental data to the CSS811 for better compensation
+#endif //CCS811_ON
 #else //BME280_ON
+#if CCS811_ON
   ccs.setEnvironmentalData(45,18); //set dummy temp & humidity 
+#endif //CCS811_ON
 #endif //BME280_ON
 
+#if CCS811_ON
   //read CO2 and TVOC of CCS811
   if(ccs.available()){
    //float temp = ccs.calculateTemperature(); //That stuff is not working/unsupported by lib somehow
@@ -338,6 +394,17 @@ bool fetch_data(void)
     Serial.println(F("CCS811 read failed!"));
     while(1);}
   } 
+#endif //CCS811_ON
+
+#if SCD30_ON
+  //read CO2, Temperature and Humidity
+  if (scd30.dataReady()){
+   if (!scd30.read()){ Serial.println(F("Error reading SCD30 sensor data")); return; }
+   data.co2 = scd30.CO2;
+   data.temp = scd30.temperature;
+   data.humid = scd30.relative_humidity;
+  }
+#endif //SCD30_ON
 
 #if HM3301_ON
   //read HM3301  
@@ -368,7 +435,6 @@ bool fetch_data(void)
     if (i==7)
     data.pm10atm=hm3301value;
   }
-
 #endif //HM3301_ON    
   return true;
 }
@@ -408,19 +474,26 @@ bool log_data(void)
   logfile.print(CSVSEP); //csv separator
   logfile.print(data.light);
   logfile.print(CSVSEP); //csv separator
-#if BME280_ON 
+#if BME280_ON || SCD30_ON 
   logfile.print(data.temp);
   logfile.print(CSVSEP); //csv separator 
   logfile.print(data.humid);
   logfile.print(CSVSEP); //csv separator 
+#if BME280_ON 
   logfile.print(data.press/100);
   logfile.print(CSVSEP); //csv separator     
 #endif // BME280_ON  
+#endif // BME280_ON || SCD30_ON 
+#if CCS811_ON || SCD30_ON
   logfile.print(data.co2);
   logfile.print(CSVSEP); //csv separator 
+#endif // CCS811_ON || SCD30_ON
+#if CCS811_ON
   logfile.print(data.tvoc);
-#if HM3301_ON
   logfile.print(CSVSEP);
+#endif //CCS811_ON 
+#if HM3301_ON
+
   logfile.print(data.pm1std);
   logfile.print(CSVSEP); //csv separator 
   logfile.print(data.pm25std);
@@ -439,18 +512,24 @@ bool log_data(void)
   Serial.print(": "); 
   Serial.print(data.light);
   Serial.print("LDR,");    
-#if BME280_ON   
+#if BME280_ON || SCD30_ON 
   Serial.print(data.temp);
   Serial.print("C,"); 
   Serial.print(data.humid);
   Serial.print("pt,");   
+#endif BME280_ON || SCD30_ON 
+#if BME280_ON 
   Serial.print(data.press/100);
   Serial.print("hPa,"); 
-#endif // BME280_ON    
+#endif // BME280_ON 
+#if CCS811_ON || SCD30_ON  
   Serial.print(data.co2);
   Serial.print("ppm,"); 
+#endif //CCS811_ON || SCD30_ON
+#if CCS811_ON
   Serial.print(data.tvoc);
   Serial.print("ppb,"); 
+#endif //CCS811_ON
 #if HM3301_ON
   Serial.print(data.pm1std);
   Serial.print("ug/m3,");
@@ -517,13 +596,20 @@ void write_oled()
   oled.print(" ppm");
   oled.clearToEOL();
   oled.println(); 
+#if CCS811_ON
   oled.print("TVOC: ");  
-  oled.print(data.tvoc);  
+  oled.print(data.tvoc); 
   oled.print(" ppb   "); //weirdly in this line a "q" is showing up out of nowhere
+#else
+  // No CCS811 - no TVOC. Therefor show something else useful.
+  /*oled.print("Light: ");  
+  oled.print(data.light); */
+  oled.print("PM1(atm): ");  
+  oled.print(data.pm1atm); 
+  oled.print(" ug/m3 ");  
+#endif //CCS811_ON
   oled.clearToEOL();  
   oled.println(); 
-  /*oled.print("Light: ");  
-  oled.print(data.light);*/ 
   oled.print("PM2.5(atm): ");  
   oled.print(data.pm25atm); 
   oled.print(" ug/m3 ");  

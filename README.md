@@ -1,9 +1,10 @@
 # CLIMAX2001
 An Arduino based room-climate logger
 
-- Adafruit Arduino Datalogging Shield (SD-Card + RTC)
-- CJMCU-811 CO2/TVOC Sensor
-- BME280 Humidity/Temperature/Barometer Sensor
+- Adafruit Arduino datalogging shield (SD-Card + RTC)
+- CJMCU-811 CO2/TVOC sensor (disabled)
+- SCD30 Sensirion CO2/temperature/humidity sensor module
+- BME280 humidity/temperature/barometer Sensor (used only for pressure since SCD30 was added)
 - HM3301 Seeed PM2.5 Dust Detection Sensor
 - LDR Light Sensor
 - SSD1306 OLED Display 0,96"

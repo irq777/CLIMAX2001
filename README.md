@@ -19,9 +19,10 @@ It's a bit painful to insert comma-separated values from a CSV file - especially
 3. The preview shows that the commas are missing e.g. in values of temperature, humidity or pressure if your office is not running under "US-locals"
 4. To fix that go to Import dialog window and choose "Transform Data" to open the "Power Query Editor" 
 5. In "Power Query Editor" window set locals to "English (United States)" via "File > Options and Settings > Query Options > Regional Settings"
-6. The preview shows now the commas correctly 
-7. Click "Close & Load"
-8. Your values appear now properly in Excel including commas for temperature, humidity and pressure
+6. Close "Power Query Editor" and proceed with step 1. (I don't know why but I have to change the locals in "Power Query Editor" every time I start Excel)
+7. The preview shows now the commas correctly 
+8. Click "Close & Load"
+9. Your values appear now properly in Excel including commas for temperature, humidity and pressure
 
 ## Draw Exel diagrams
 1. Mark colum A (datetime) and select "Format cells"

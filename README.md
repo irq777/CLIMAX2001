@@ -10,6 +10,7 @@
 - SSD1306 OLED Display 0,96"
 - Push button to toggle display on/off
 - Everything put together into and onto a nice yellow EURO-BOX housing
+- [DCF77](https://en.wikipedia.org/wiki/DCF77) time signal (currently deactivated) 
 ![Climax2001_front](https://user-images.githubusercontent.com/52123868/236780165-3b59ef0f-1c78-4aa1-a62c-2104123e7b28.JPG)
 
 ## Exel CSV Import

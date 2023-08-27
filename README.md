@@ -14,7 +14,8 @@
 ![Climax2001_front](https://user-images.githubusercontent.com/52123868/236780165-3b59ef0f-1c78-4aa1-a62c-2104123e7b28.JPG)
 
 ## Exel CSV Import
-It's a bit painful to insert comma-separated values from a CSV file - especially if you are in a country where your PC and your software (like MS Office) is not running under US locals. Here is way to fix that problem:
+It's a bit painful to insert comma-separated values from a CSV file - especially if you are in a country where your PC and your software (like MS Office) is not running under US locals. 
+Below is way to fix that problem. The easiest but more radical solution is to just to set your "Region" to e.g. English (United States) in Windows.
 1. Excel > Data > From Text/CSV
 2. Import "LOGGERnn.CSV"
 3. The preview shows that the commas are missing e.g. in values of temperature, humidity or pressure if your office is not running under "US-locals"

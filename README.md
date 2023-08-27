@@ -1,7 +1,7 @@
 # CLIMAX2001
-*An Arduino UNO based room-climate logger to SD card*
+*An Arduino UNO based room-climate logger with SD-card*
 
-- Adafruit Arduino datalogging shield (SD-Card + RTC)
+- Adafruit Arduino datalogging shield with RTC writing measured data in CSV format to a SD-Card
 - CJMCU-811 CO2/TVOC sensor (disabled and replaced by SCD30)
 - SCD30 Sensirion CO2/temperature/humidity sensor module
 - BME280 humidity/temperature/barometer Sensor (used only for pressure since SCD30 was added)

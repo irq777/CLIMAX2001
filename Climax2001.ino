@@ -1,5 +1,10 @@
 // Rational:
-// This code measures time, temperature, CO2 (ppm) and tvoc (ppb) every minute and log it to a SD-Card in CSV format
+// This code measures time, temperature, humidity, pressure, CO2 (ppm) and dust pollution (ug/m3) every minute and log it to a SD-Card in CSV format
+// Find the latest code here: https://github.com/irq777/CLIMAX2001/
+
+//Disclaimer:
+//This code was wildly put together from example programs of the linked sources below. I did this just for fun and to play around with sensors. 
+//I put a lot of compiler switches to test different combinations which made the code a bit messy. Sorry for that.
 
 // Sources:
 // Dallas DS1820 sensor: https://create.arduino.cc/projecthub/TheGadgetBoy/ds18b20-digital-temperature-sensor-and-arduino-9cc806 / https://www.arduino.cc/reference/en/libraries/onewire/
@@ -298,15 +303,15 @@ void setup(void)
 #endif //SCD30_ON
 
   //Write data-headers to CSV 
-  logfile.print(F("datetime" CSVSEP "light" CSVSEP "temp" CSVSEP "humid" CSVSEP ));
+  logfile.print(F("datetime" CSVSEP "light(LDR)" CSVSEP "temperature(°C)" CSVSEP "relative humidity(%)" CSVSEP ));
 #if BME280_ON
-  logfile.print(F("pressure" CSVSEP ));
+  logfile.print(F("pressure(hPa)" CSVSEP ));
 #endif //BME280_ON  
-  logfile.print(F("co2" CSVSEP ));
+  logfile.print(F("co2(ppm)" CSVSEP ));
 #if CCS811_ON  
-  logfile.print(F("tvoc" CSVSEP ));
+  logfile.print(F("tvoc(ppb)" CSVSEP ));
 #endif //CCS811_ON  
-  logfile.print(F("pm1std" CSVSEP "pm25std" CSVSEP "pm10std" CSVSEP "pm1atm" CSVSEP "pm25atm" CSVSEP "pm10atm"));  
+  logfile.print(F("pm1std(ug/m3)" CSVSEP "pm25std(ug/m3)" CSVSEP "pm10std(ug/m3)" CSVSEP "pm1atm(ug/m3)" CSVSEP "pm25atm(ug/m3)" CSVSEP "pm10atm(ug/m3)"));  
   logfile.println(F(""));
 
 #if ECHO_TO_SERIAL

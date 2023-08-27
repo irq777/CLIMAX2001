@@ -4,9 +4,9 @@
 - Adafruit Arduino datalogging shield with RTC writing measured data in CSV format to a SD-Card
 - CJMCU-811 CO2/TVOC sensor (disabled and replaced by SCD30)
 - SCD30 Sensirion CO2/temperature/humidity sensor module
-- BME280 humidity/temperature/barometer Sensor (used only for pressure since SCD30 was added)
-- HM3301 Seeed PM2.5 Dust Detection Sensor
-- LDR Light Sensor
+- BME280 humidity/temperature/barometer sensor (used only for pressure since SCD30 was added)
+- HM3301 Seeed PM2.5 dust detection laser sensor
+- LDR light sensor
 - SSD1306 OLED Display 0,96"
 - Push button to toggle display on/off
 - Everything put together into and onto a nice yellow EURO-BOX housing

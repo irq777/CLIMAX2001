@@ -2,7 +2,7 @@
 *An Arduino UNO based room-climate logger*
 
 - Adafruit Arduino datalogging shield (SD-Card + RTC)
-- CJMCU-811 CO2/TVOC sensor (disabled)
+- CJMCU-811 CO2/TVOC sensor (disabled and replaced by SCD30)
 - SCD30 Sensirion CO2/temperature/humidity sensor module
 - BME280 humidity/temperature/barometer Sensor (used only for pressure since SCD30 was added)
 - HM3301 Seeed PM2.5 Dust Detection Sensor

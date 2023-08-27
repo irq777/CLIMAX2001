@@ -1,5 +1,5 @@
 # CLIMAX2001
-*An Arduino based room-climate logger*
+*An Arduino UNO based room-climate logger*
 
 - Adafruit Arduino datalogging shield (SD-Card + RTC)
 - CJMCU-811 CO2/TVOC sensor (disabled)
@@ -9,6 +9,7 @@
 - LDR Light Sensor
 - SSD1306 OLED Display 0,96"
 - Push button to toggle display on/off
+- Everything put together into and onto an EURO-BOX housing
 ![Climax2001_front](https://user-images.githubusercontent.com/52123868/236780165-3b59ef0f-1c78-4aa1-a62c-2104123e7b28.JPG)
 
 ## Exel CSV Import

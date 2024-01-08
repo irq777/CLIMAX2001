@@ -52,19 +52,23 @@
 #include <Seeed_HM330X.h> //https://github.com/Seeed-Studio/Seeed_PM2_5_sensor_HM3301
 #include <util/parity.h>  //https://wolles-elektronikkiste.de/dcf77-funkuhr
 #include "Adafruit_SCD30.h" //https://github.com/adafruit/Adafruit_SCD30/
+#include <MemoryFree.h> //https://github.com/mpflaga/Arduino-MemoryFree
+
 // how many milliseconds between grabbing data and logging it. 1000 ms is once a second
-#define LOG_INTERVAL 60000 // 60000 mills between entries (reduce to take more/faster data)
+#define LOG_INTERVAL 60000 //60000 mills between entries (reduce to take more/faster data)
 
 // how many milliseconds before writing the logged data permanently to disk
 // set it to the LOG_INTERVAL to write each time (safest)
 // set it to 10*LOG_INTERVAL to write all data every 10 datareads, you could lose up to 
 // the last 10 reads if power is lost but it uses less power and is much faster!
-#define SYNC_INTERVAL 60000 // 60000 mills between calls to flush() - to write data to the card
+#define SYNC_INTERVAL 60000 //60000 mills between calls to flush() - to write data to the card
 uint32_t syncTime = 0; // time of last sync()
 #define CSVSEP ","
 
-#define ECHO_TO_SERIAL   1 // echo data to serial port
+#define ECHO_TO_SERIAL   0 // echo data to serial port
 #define WAIT_TO_START    0 // Wait for serial input in setup()
+
+#define DEBUG 0
 
 // the digital pins that connect to the LEDs if jumpers on board are set
 #define LEDMODE 0
@@ -89,7 +93,7 @@ uint32_t syncTime = 0; // time of last sync()
 #define OLED_ON 1 // eneable / disable display support
 #if OLED_ON
  #define I2C_ADDRESS 0x3C 
- #define RST_PIN -1
+ //#define RST_PIN -1
  #define OLED_TIMEOUT 12000
  SSD1306AsciiAvrI2c oled; //I2C 0x3C
  bool permaOled = false;
@@ -180,7 +184,8 @@ void setup(void)
 
 #if OLED_ON
   //Init SSD1306 Display
-  oled.begin(&Adafruit128x64, I2C_ADDRESS, RST_PIN);
+  //oled.begin(&Adafruit128x64, I2C_ADDRESS, RST_PIN);
+  oled.begin(&Adafruit128x64, I2C_ADDRESS);
   oled.setFont(Adafruit5x7);
   oled.clear();
   oled.println(F("Bootup..."));
@@ -290,6 +295,11 @@ void setup(void)
 #endif // BME280_ON  
 
 #if SCD30_ON
+#if DEBUG
+  Serial.println(freeMemory());
+  Serial.print(F("FreeMem before SCD30 init"));
+  Serial.println();
+#endif //DEBUG  
   //Init SCD30 (CO2/Temperature/Humidity)
   Serial.print(F("Initializing SCD30 sensor..."));
   if (!scd30.begin()) {
@@ -300,6 +310,12 @@ void setup(void)
   Serial.print(F("Measurement Interval: "));
   Serial.print(scd30.getMeasurementInterval());
   Serial.println(F(" seconds"));
+#if DEBUG
+  Serial.println(freeMemory());
+  Serial.print(F("FreeMem after SCD30 init"));
+  Serial.println();
+#endif //DEBUG
+
 #endif //SCD30_ON
 
   //Write data-headers to CSV 
@@ -312,6 +328,9 @@ void setup(void)
   logfile.print(F("tvoc(ppb)" CSVSEP ));
 #endif //CCS811_ON  
   logfile.print(F("pm1std(ug/m3)" CSVSEP "pm25std(ug/m3)" CSVSEP "pm10std(ug/m3)" CSVSEP "pm1atm(ug/m3)" CSVSEP "pm25atm(ug/m3)" CSVSEP "pm10atm(ug/m3)"));  
+#if DEBUG
+  logfile.print(F(CSVSEP "FreeMem" ));
+#endif //DEBUG
   logfile.println(F(""));
 
 #if ECHO_TO_SERIAL
@@ -496,9 +515,8 @@ bool log_data(void)
 #if CCS811_ON
   logfile.print(data.tvoc);
   logfile.print(CSVSEP);
-#endif //CCS811_ON 
+#endif //CCS811_ON
 #if HM3301_ON
-
   logfile.print(data.pm1std);
   logfile.print(CSVSEP); //csv separator 
   logfile.print(data.pm25std);
@@ -512,30 +530,39 @@ bool log_data(void)
   logfile.print(data.pm10atm);
   //logfile.print(CSVSEP); //csv separator
 #endif //HM3301_ON
+#if DEBUG
+  logfile.print(CSVSEP);
+  logfile.print(freeMemory());
+#endif //DEBUG 
   logfile.println();
 #if ECHO_TO_SERIAL
   Serial.print(": "); 
   Serial.print(data.light);
-  Serial.print("LDR,");    
+  Serial.print("LDR");    
 #if BME280_ON || SCD30_ON 
+  Serial.print(",");
   Serial.print(data.temp);
   Serial.print("C,"); 
   Serial.print(data.humid);
-  Serial.print("pt,");   
+  Serial.print("pt");   
 #endif BME280_ON || SCD30_ON 
 #if BME280_ON 
+  Serial.print(",");
   Serial.print(data.press/100);
-  Serial.print("hPa,"); 
+  Serial.print("hPa"); 
 #endif // BME280_ON 
-#if CCS811_ON || SCD30_ON  
+#if CCS811_ON || SCD30_ON 
+  Serial.print(","); 
   Serial.print(data.co2);
-  Serial.print("ppm,"); 
+  Serial.print("ppm"); 
 #endif //CCS811_ON || SCD30_ON
 #if CCS811_ON
+  Serial.print(",");
   Serial.print(data.tvoc);
-  Serial.print("ppb,"); 
+  Serial.print("ppb"); 
 #endif //CCS811_ON
 #if HM3301_ON
+  Serial.print(",");
   Serial.print(data.pm1std);
   Serial.print("ug/m3,");
   Serial.print(data.pm25std);
@@ -549,6 +576,11 @@ bool log_data(void)
   Serial.print(data.pm10atm);
   Serial.print("ug/m3");
 #endif //HM3301_ON
+#if DEBUG
+  Serial.print(",");
+  Serial.print(freeMemory());
+  Serial.print("FreeMem");
+#endif //DEBUG  
   Serial.println();
 #endif //ECHO_TO_SERIAL
 }
@@ -556,7 +588,6 @@ bool log_data(void)
 void write_oled()
 {
 #if OLED_ON
-  //oled.clear();
   oled.setCursor(0,0);
   oled.println("--== CLIMAX 2001 ==--");
   oled.print("   ");
@@ -591,11 +622,13 @@ void write_oled()
   oled.print(" %");
   oled.clearToEOL();  
   oled.println(); 
+#if BME280_ON   
   oled.print("Pressure: ");  
   oled.print(data.press/100);  
   oled.print(" hPA");
   oled.clearToEOL();
   oled.println(); 
+#endif
   oled.print("C02: ");  
   oled.print(data.co2);  
   oled.print(" ppm");
@@ -609,16 +642,18 @@ void write_oled()
   // No CCS811 - no TVOC. Therefor show something else useful.
   /*oled.print("Light: ");  
   oled.print(data.light); */
+#endif //CCS811_ON
+#if HM3301_ON
   oled.print("PM1(atm): ");  
   oled.print(data.pm1atm); 
   oled.print(" ug/m3 ");  
-#endif //CCS811_ON
   oled.clearToEOL();  
   oled.println(); 
   oled.print("PM2.5(atm): ");  
   oled.print(data.pm25atm); 
   oled.print(" ug/m3 ");  
-  oled.clearToEOL();
+  oled.clearToEOL();  
+#endif //HM3301_ON   
   //oled.println();   
 #endif // OLED_ON 
 }
@@ -638,6 +673,10 @@ void singleClick()
   }
   else{
     lastOledMillis = currentMillis; 
+    //better initialize display again
+    oled.begin(&Adafruit128x64, I2C_ADDRESS);
+    oled.setFont(Adafruit5x7);
+    write_oled(); 
   }
 } 
 
@@ -650,6 +689,10 @@ void longPress()
   }
   else{
     permaOled = true;
+    //better initialize display again
+    oled.begin(&Adafruit128x64, I2C_ADDRESS);
+    oled.setFont(Adafruit5x7);
+    write_oled(); 
   }
 }
 #endif // OLED_ON 
@@ -662,16 +705,19 @@ void loop(void)
     fetch_data();   
     log_data(); 
     lastLogMillis = currentMillis;  
-  }  
 #if OLED_ON    
     if ((currentMillis-lastOledMillis <= OLED_TIMEOUT)||(permaOled==true)){
       write_oled();        
-    }
-    else{
-      oled.clear();      
-    }    
-#endif // OLED_ON
-  
+    } 
+#endif // OLED_ON    
+  }
+
+#if OLED_ON   
+  if (!((currentMillis-lastOledMillis <= OLED_TIMEOUT)||(permaOled==true))){
+    oled.clear(); 
+  } 
+#endif // OLED_ON  
+
 // Now we write data to disk! Don't sync too often - requires 2048 bytes of I/O to SD card
   // which uses a bunch of power and takes time    
   if(currentMillis-lastSyncMillis >= SYNC_INTERVAL){

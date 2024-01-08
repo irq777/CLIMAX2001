@@ -7,7 +7,7 @@
 - BME280 humidity/temperature/barometer sensor (used only for pressure since SCD30 was added)
 - HM3301 Seeed PM2.5 dust detection laser sensor
 - LDR light sensor
-- SSD1306 OLED Display 0,96"
+- SSD1306 128x64 OLED Display 0,96"
 - Push button to toggle display on/off
 - Everything put together into and onto a nice yellow EURO-BOX housing
 - [DCF77](https://en.wikipedia.org/wiki/DCF77) time signal (currently deactivated) 

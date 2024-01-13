@@ -1,11 +1,11 @@
 # CLIMAX2001
 *An Arduino UNO based room-climate logger with SD-card*
 
-- Adafruit Arduino datalogging shield with RTC writing measured data in CSV format to a SD-Card
-- CJMCU-811 CO2/TVOC sensor (disabled and replaced by SCD30)
-- SCD30 Sensirion CO2/temperature/humidity sensor module
-- BME280 humidity/temperature/barometer sensor (used only for pressure since SCD30 was added)
-- HM3301 Seeed PM2.5 dust detection laser sensor
+- [Adafruit Arduino datalogging shield with RTC](https://learn.adafruit.com/adafruit-data-logger-shield/overview) writing measured data in CSV format to a SD-Card
+- [CJMCU-811 CO2/TVOC sensor](https://learn.adafruit.com/adafruit-ccs811-air-quality-sensor/arduino-wiring-test) (disabled and replaced by SCD30)
+- [SCD30 Sensirion CO2/temperature/humidity sensor](https://www.sensirion.com/products/catalog/SCD30/) module
+- [BME280 humidity/temperature/barometer sensor](https://learn.adafruit.com/adafruit-bme280-humidity-barometric-pressure-temperature-sensor-breakout/arduino-test) (used only for pressure since SCD30 was added)
+- [HM3301 Seeed PM2.5 dust detection laser sensor](https://wiki.seeedstudio.com/Grove-Laser_PM2.5_Sensor-HM3301/)
 - LDR light sensor
 - SSD1306 128x64 OLED Display 0,96"
 - Push button to toggle display on/off

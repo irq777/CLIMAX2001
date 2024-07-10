@@ -65,7 +65,7 @@
 uint32_t syncTime = 0; // time of last sync()
 #define CSVSEP ","
 
-#define ECHO_TO_SERIAL   0 // echo data to serial port
+#define ECHO_TO_SERIAL   1 // echo data to serial port
 #define WAIT_TO_START    0 // Wait for serial input in setup()
 
 #define DEBUG 0
@@ -99,10 +99,14 @@ uint32_t syncTime = 0; // time of last sync()
  bool permaOled = false;
 #endif // OLED_ON
 
+ 
 // Setup logging shield (RTC, SDCARD)
-RTC_DS1307 RTC; // define the Real Time Clock object
+#define SD_ON 1 //enable/disable SD logging (does not affect RTC!)
+RTC_DS1307 RTC; // define the Real Time Clock object. 0x68 I2C address for DS1307
 const int chipSelect = 10;// for the data logging shield, we use digital pin 10 for the SD cs line
+#if SD_ON 
 File logfile; // the logging file
+#endif //SD_ON  
 
 #define DS1820_ON 0 //enable disable Dallas oneWire temperature sensor (currently unused coz onewire takes too much mem)
 #if DS1820_ON
@@ -126,7 +130,7 @@ Adafruit_CCS811 ccs; // I2C 0x5A
 #endif //CCS811_ON
 
 //BME280 Humidity/Temp/Barometer Sensor
-#define BME280_ON 1
+#define BME280_ON 0
 #if BME280_ON
   //BME280 Humidity/Temp/Barometer Sensor
   Adafruit_BME280 bme; // I2C 0x76
@@ -135,8 +139,10 @@ Adafruit_CCS811 ccs; // I2C 0x5A
 
 #define SCD30_ON 1
 #if SCD30_ON
-// Sensirion SCD30 CO2/Temperature/Humidity
-Adafruit_SCD30  scd30; // I2C 0x61
+  // Sensirion SCD30 CO2/Temperature/Humidity
+  Adafruit_SCD30  scd30; // I2C 0x61
+  #define SCD30_TEMP_OFFSET 240 // temperature offset correction. value is always subtracted. (e.g. +3,45°C is 345)
+  #define SCD30_MEASUREMENT_INTERVAL 10 // from 2-1800 seconds 
 #endif //SCD30_ON
 
 //Seeed PM2.5 Sensor HM3301
@@ -179,7 +185,7 @@ OneButton button(2, true, true);
 void setup(void) 
 { 
   // start serial port 
-  Serial.begin(115200); 
+  Serial.begin(57600); 
   Serial.println(F("Bootup..."));
 
 #if OLED_ON
@@ -216,7 +222,9 @@ void setup(void)
   // connect to RTC
   Wire.begin();  
   if (!RTC.begin()) {
+#if SD_ON      
     logfile.println(F("RTC failed"));
+#endif //SD_ON      
 #if ECHO_TO_SERIAL
     Serial.println(F("RTC failed"));
 #endif  //ECHO_TO_SERIAL
@@ -229,14 +237,15 @@ void setup(void)
     RTC.adjust(DateTime(F(__DATE__), F(__TIME__)));
   }
   //need to correct date/time? set it below, uncomment and run it just once(!)
-  //RTC.adjust(DateTime(2023, 3, 12, 11, 15, 0)); //e.g. set RTC to 2023-03-12 11:15:00 (am)
+  //RTC.adjust(DateTime(2024, 4, 14, 22, 41, 0)); //e.g. set RTC to 2023-04-14 22:41:00 (am)
 
+#if SD_ON
   // see if the card is present and can be initialized:
   if (!SD.begin(chipSelect)) {
     error("Card failed, or not present");
   }
   Serial.println(F("card initialized."));
-
+  
   // create a new file with ascending number 
   char filename[] = "LOGGER00.CSV";  
   for (uint8_t i = 0; i < 100; i++) {
@@ -268,6 +277,7 @@ void setup(void)
   }
   Serial.print(F("Logging to: "));
   Serial.println(filename);
+#endif //SD_ON  
 
 #if DS1820_ON
  // Start up the DS1820 OneWire library for the DS1820 temperature sensor 
@@ -307,9 +317,67 @@ void setup(void)
     while (1) { delay(10); }
   }
   Serial.println(F("sensor initilized."));
+
+  /*Serial.print(scd30.setMeasurementInterval(5));
+  if (!scd30.setMeasurementInterval(SCD30_MEASUREMENT_INTERVAL)) {
+    Serial.println(F("Failed to set measurement interval"));
+    while(1){ delay(10);}
+  } */ 
   Serial.print(F("Measurement Interval: "));
   Serial.print(scd30.getMeasurementInterval());
   Serial.println(F(" seconds"));
+
+  // Set an altitude offset in meters above sea level.
+  // Offset value stored in non-volatile memory of SCD30. Please uncomment after set once.
+  // Setting an altitude offset will override any pressure offset.
+  /*if (!scd30.setAltitudeOffset(279)){ // e.g. Erlangen is at 279 m
+    Serial.println("Failed to set altitude offset");
+    while(1){ delay(10);}
+  }*/
+  Serial.print(F("Altitude offset: "));
+  Serial.print(scd30.getAltitudeOffset());
+  Serial.println(F(" meters"));
+
+   //Set a temperature offset in hundredths of a degree celcius.
+   //Value is subtracted from thr reading assuming that the function is intended to compensating the self-heating of the PCB.
+   //Offset value stored in non-volatile memory of SCD30. In therory. But when I uncomment after I set it once, reading the offset reports 0.02°C instead of the value I have set.
+   //When applying an offset it takes serveral minutes (!) until it's completely applied. Probably because they assume that the PCB is heating up slowly.
+   if (!scd30.setTemperatureOffset(SCD30_TEMP_OFFSET)){ // +3.45°C too high (compared to a reference e.g. SHT31) means to set 345
+     Serial.println(F("Failed to set temperature offset"));
+     while(1){ delay(10);}
+   }
+  Serial.print(F("Temperature offset: "));
+  Serial.print((float)scd30.getTemperatureOffset()/100.0);
+  Serial.println(F(" degrees C"));
+
+  /*** Restart continuous measurement with a pressure offset from 700 to 1400 millibar.
+   * Giving no argument or setting the offset to 0 will disable offset correction
+   */
+  // if (!scd30.startContinuousMeasurement(15)){
+  //   Serial.println("Failed to set ambient pressure offset");
+  //   while(1){ delay(10);}
+  // }
+  Serial.print(F("Ambient pressure offset: "));
+  Serial.print(scd30.getAmbientPressureOffset());
+  Serial.println(F(" mBar"));
+
+/*** Enable or disable automatic self calibration (ASC).
+   * Parameter stored in non-volatile memory of SCD30.
+   * Enabling self calibration will override any previously set
+   * forced calibration value.
+   * ASC needs continuous operation with at least 1 hour
+   * 400ppm CO2 concentration daily.
+   */
+  // if (!scd30.selfCalibrationEnabled(true)){
+  //   Serial.println("Failed to enable or disable self calibration");
+  //   while(1) { delay(10); }
+  // }
+  if (scd30.selfCalibrationEnabled()) {
+    Serial.print(F("Self calibration enabled"));
+  } else {
+    Serial.print(F("Self calibration disabled"));
+  }
+
 #if DEBUG
   Serial.println(freeMemory());
   Serial.print(F("FreeMem after SCD30 init"));
@@ -318,6 +386,7 @@ void setup(void)
 
 #endif //SCD30_ON
 
+#if SD_ON  
   //Write data-headers to CSV 
   logfile.print(F("datetime" CSVSEP "light(LDR)" CSVSEP "temperature(°C)" CSVSEP "relative humidity(%)" CSVSEP ));
 #if BME280_ON
@@ -332,6 +401,7 @@ void setup(void)
   logfile.print(F(CSVSEP "FreeMem" ));
 #endif //DEBUG
   logfile.println(F(""));
+#endif //SD_ON  
 
 #if ECHO_TO_SERIAL
   Serial.print(F("datetime,light,temp,humid,"));
@@ -379,8 +449,24 @@ Serial.println(F(""));
 
 bool fetch_data(void)
 {
+#if DEBUG
+  Serial.println(F("enter: fetch_data")); 
+#endif //DEBUG    
+
+  if (RTC.isrunning()==0) {
+    Serial.println(F("RTC is NOT running!"));
+  }
+#if DEBUG  
+  else{
+  Serial.println(F("RTC running")); 
+  }
+#endif //DEBUG  
+
   // fetch the time
   data.now = RTC.now();
+#if DEBUG
+  Serial.println(F("RTC data fetched")); 
+#endif //DEBUG   
 
   // fetch sensordata
 #if DS1820_ON
@@ -389,6 +475,9 @@ bool fetch_data(void)
   data.temperatureC = sensors.getTempCByIndex(0); //currently 
 #endif // DS1820_ON
 
+#if DEBUG
+  Serial.println(F("Read LDR")); 
+#endif //DEBUG   
   // Light intensity 
   data.light = analogRead(photocellPin); //read light intensity (LDR is nonlinear, so there is no utit for this)
 
@@ -397,6 +486,9 @@ bool fetch_data(void)
   data.humid = bme.readHumidity();
   data.temp = bme.readTemperature() + BME_TEMP_OFFSET;
 #endif //!SCD30_ON 
+#if DEBUG
+  Serial.println(F("Read pressure")); 
+#endif //DEBUG   
   data.press = bme.readPressure();
 #if CCS811_ON
   ccs.setEnvironmentalData(data.humid,data.temp); //send enviromnental data to the CSS811 for better compensation
@@ -422,26 +514,51 @@ bool fetch_data(void)
 
 #if SCD30_ON
   //read CO2, Temperature and Humidity
+#if DEBUG
+  Serial.println(F("Read SCD30")); 
+#endif //DEBUG    
   if (scd30.dataReady()){
-   if (!scd30.read()){ Serial.println(F("Error reading SCD30 sensor data")); return; }
+   if (!scd30.read()){ 
+#if DEBUG    
+    Serial.println(F("Error reading SCD30 sensor data")); 
+#endif //DEBUG    
+    return false; 
+   }
    data.co2 = scd30.CO2;
    data.temp = scd30.temperature;
    data.humid = scd30.relative_humidity;
+  }
+  else{
+#if DEBUG
+    Serial.println(F("SCD30 data not ready!")); 
+    return false;
+#endif //DEBUG  
   }
 #endif //SCD30_ON
 
 #if HM3301_ON
   //read HM3301  
+#if DEBUG
+  Serial.println(F("Read HM3301")); 
+#endif //DEBUG    
   uint8_t hm3301buf[30];
   uint16_t hm3301value = 0;
   if (hm3301.read_sensor_value(hm3301buf, 29)) {
+#if DEBUG    
     Serial.println(F("HM3301 read failed!"));
+#endif //DEBUG     
+    return false;
   }
   if (NULL == hm3301buf) {
+#if DEBUG      
     Serial.println(F("HM3301 no data!"));
+#endif //DEBUG     
     return false;
   }
 
+#if DEBUG      
+    Serial.println(F("Parse HM3301 data"));
+#endif //DEBUG    
   for (int i = 1; i < 8; i++) {
     hm3301value = (uint16_t) hm3301buf[i * 2] << 8 | hm3301buf[i * 2 + 1];
     if (i==1)
@@ -459,12 +576,19 @@ bool fetch_data(void)
     if (i==7)
     data.pm10atm=hm3301value;
   }
-#endif //HM3301_ON    
+#endif //HM3301_ON   
+#if DEBUG
+  Serial.println(F("exit: fetch_data")); 
+#endif //DEBUG   
   return true;
 }
 
 bool log_data(void)
 {
+#if DEBUG
+  Serial.println(F("enter: log_data")); 
+#endif //DEBUG   
+#if SD_ON  
   logfile.print('"');
   logfile.print(data.now.year(), DEC);
   logfile.print("/");
@@ -478,6 +602,7 @@ bool log_data(void)
   logfile.print(":");
   logfile.print(data.now.second(), DEC);
   logfile.print('"');
+#endif //SD_ON
 
 #if ECHO_TO_SERIAL
   Serial.print('"');
@@ -495,6 +620,7 @@ bool log_data(void)
   Serial.print('"');
 #endif //ECHO_TO_SERIAL
 
+#if SD_ON
   logfile.print(CSVSEP); //csv separator
   logfile.print(data.light);
   logfile.print(CSVSEP); //csv separator
@@ -535,6 +661,8 @@ bool log_data(void)
   logfile.print(freeMemory());
 #endif //DEBUG 
   logfile.println();
+#endif //SD_ON
+
 #if ECHO_TO_SERIAL
   Serial.print(": "); 
   Serial.print(data.light);
@@ -583,11 +711,17 @@ bool log_data(void)
 #endif //DEBUG  
   Serial.println();
 #endif //ECHO_TO_SERIAL
+#if DEBUG
+  Serial.println(F("exit: log_data")); 
+#endif //DEBUG   
 }
 
 void write_oled()
 {
 #if OLED_ON
+#if DEBUG
+  Serial.println(F("enter: write_oled")); 
+#endif //DEBUG 
   oled.setCursor(0,0);
   oled.println("--== CLIMAX 2001 ==--");
   oled.print("   ");
@@ -655,13 +789,18 @@ void write_oled()
   oled.clearToEOL();  
 #endif //HM3301_ON   
   //oled.println();   
+#if DEBUG
+  Serial.println(F("exit: write_oled")); 
+#endif //DEBUG   
 #endif // OLED_ON 
 }
 
 #if OLED_ON 
 void singleClick()
 {
+#if DEBUG
   Serial.println(F("singleClick"));  
+#endif //DEBUG     
   if(permaOled == true){
     permaOled = false;
     oled.clear();
@@ -682,7 +821,9 @@ void singleClick()
 
 void longPress()
 {
+#if DEBUG
   Serial.println(F("longPress"));
+#endif //DEBUG    
   if(permaOled==true){
     permaOled = false;
     oled.clear(); 
@@ -702,14 +843,20 @@ void loop(void)
   button.tick();
   currentMillis = millis();  //get the current time
   if(currentMillis-lastLogMillis >= LOG_INTERVAL){
-    fetch_data();   
-    log_data(); 
-    lastLogMillis = currentMillis;  
+    if(fetch_data()){
+        log_data(); 
+        lastLogMillis = currentMillis;  
 #if OLED_ON    
-    if ((currentMillis-lastOledMillis <= OLED_TIMEOUT)||(permaOled==true)){
-      write_oled();        
-    } 
-#endif // OLED_ON    
+        if ((currentMillis-lastOledMillis <= OLED_TIMEOUT)||(permaOled==true)){
+          write_oled();        
+        } 
+#endif // OLED_ON  
+    }
+    else{
+#if DEBUG
+          Serial.println(F("fetch_data failed!"));
+#endif //DEBUG 
+    }     
   }
 
 #if OLED_ON   
@@ -721,10 +868,15 @@ void loop(void)
 // Now we write data to disk! Don't sync too often - requires 2048 bytes of I/O to SD card
   // which uses a bunch of power and takes time    
   if(currentMillis-lastSyncMillis >= SYNC_INTERVAL){
-#if ECHO_TO_SERIAL    
-    Serial.println(F("log_data")); 
-#endif //ECHO_TO_SERIAL
+#if DEBUG    
+    Serial.print(F("flush data to SD card...")); 
+#endif //DEBUG
+#if SD_ON  
     logfile.flush();
+#endif //SD_ON  
+#if DEBUG    
+    Serial.println(F("done!")); 
+#endif //DEBUG
     lastSyncMillis = currentMillis;  
   } 
 } 

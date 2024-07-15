@@ -141,7 +141,7 @@ Adafruit_CCS811 ccs; // I2C 0x5A
 #if SCD30_ON
   // Sensirion SCD30 CO2/Temperature/Humidity
   Adafruit_SCD30  scd30; // I2C 0x61
-  #define SCD30_TEMP_OFFSET 240 // temperature offset correction. value is always subtracted. (e.g. +3,45°C is 345)
+  #define SCD30_TEMP_OFFSET 270 // temperature offset correction. value is always subtracted. (e.g. +3,45°C is 345)
   #define SCD30_MEASUREMENT_INTERVAL 10 // from 2-1800 seconds 
 #endif //SCD30_ON
 

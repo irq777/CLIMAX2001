@@ -55,17 +55,17 @@
 #include <MemoryFree.h> //https://github.com/mpflaga/Arduino-MemoryFree
 
 // how many milliseconds between grabbing data and logging it. 1000 ms is once a second
-#define LOG_INTERVAL 60000 //60000 mills between entries (reduce to take more/faster data)
+#define LOG_INTERVAL 5000 //60000 mills between entries (reduce to take more/faster data)
 
 // how many milliseconds before writing the logged data permanently to disk
 // set it to the LOG_INTERVAL to write each time (safest)
 // set it to 10*LOG_INTERVAL to write all data every 10 datareads, you could lose up to 
 // the last 10 reads if power is lost but it uses less power and is much faster!
-#define SYNC_INTERVAL 60000 //60000 mills between calls to flush() - to write data to the card
+#define SYNC_INTERVAL 5000 //60000 mills between calls to flush() - to write data to the card
 uint32_t syncTime = 0; // time of last sync()
 #define CSVSEP ","
 
-#define ECHO_TO_SERIAL   1 // echo data to serial port
+#define ECHO_TO_SERIAL   0 // echo data to serial port
 #define WAIT_TO_START    0 // Wait for serial input in setup()
 
 #define DEBUG 0
@@ -97,6 +97,7 @@ uint32_t syncTime = 0; // time of last sync()
  #define OLED_TIMEOUT 12000
  SSD1306AsciiAvrI2c oled; //I2C 0x3C
  bool permaOled = false;
+ bool clearedOled = false;
 #endif // OLED_ON
 
  
@@ -141,7 +142,7 @@ Adafruit_CCS811 ccs; // I2C 0x5A
 #if SCD30_ON
   // Sensirion SCD30 CO2/Temperature/Humidity
   Adafruit_SCD30  scd30; // I2C 0x61
-  #define SCD30_TEMP_OFFSET 270 // temperature offset correction. value is always subtracted. (e.g. +3,45°C is 345)
+  #define SCD30_TEMP_OFFSET 260 // temperature offset correction. value is always subtracted. (e.g. +3,45°C is 345)
   #define SCD30_MEASUREMENT_INTERVAL 10 // from 2-1800 seconds 
 #endif //SCD30_ON
 
@@ -214,15 +215,15 @@ void setup(void)
 #endif //WAIT_TO_START
 
   // initialize the SD card
-  Serial.print(F("Initializing SD card..."));
+  Serial.print(F("Initializing SD card and RTC..."));
   // make sure that the default chip select pin is set to
   // output, even if you don't use it:
-  pinMode(10, OUTPUT);
+  pinMode(chipSelect, OUTPUT);
 
   // connect to RTC
-  Wire.begin();  
+  //Wire.begin();  
   if (!RTC.begin()) {
-#if SD_ON      
+#if SD_ON          
     logfile.println(F("RTC failed"));
 #endif //SD_ON      
 #if ECHO_TO_SERIAL
@@ -433,19 +434,31 @@ Serial.println(F(""));
 #if OLED_ON
   delay(2000); // wait a bit longer before fetching data and avoid zero measurements
   oled.clear();
+#if DEBUG      
+  Serial.println(F("oled.clear"));
+#endif //DEBUG    
 #endif // OLED_ON 
   currentMillis,lastLogMillis,lastSyncMillis,lastSyncMillis = millis();
-  fetch_data();
+  if(!fetch_data()){
+#if OLED_ON    
+    oled.println();
+    oled.print("Failed fetch_data");
+    while(1);
+#endif 
+  }
 #if OLED_ON    
     if ((currentMillis-lastOledMillis <= OLED_TIMEOUT)||(permaOled==true)){
       write_oled();        
     }
     else{
-      oled.clear();      
+      oled.clear();
+#if DEBUG      
+      Serial.println(F("oled.clear"));
+#endif //DEBUG              
     }    
 #endif // OLED_ON  
   log_data();
-}
+} //end setup()
 
 bool fetch_data(void)
 {
@@ -624,7 +637,7 @@ bool log_data(void)
   logfile.print(CSVSEP); //csv separator
   logfile.print(data.light);
   logfile.print(CSVSEP); //csv separator
-#if BME280_ON || SCD30_ON 
+#if BME280_ON || SCD30_ON || CCS811_ON
   logfile.print(data.temp);
   logfile.print(CSVSEP); //csv separator 
   logfile.print(data.humid);
@@ -667,13 +680,13 @@ bool log_data(void)
   Serial.print(": "); 
   Serial.print(data.light);
   Serial.print("LDR");    
-#if BME280_ON || SCD30_ON 
+#if BME280_ON || SCD30_ON || CCS811_ON
   Serial.print(",");
   Serial.print(data.temp);
   Serial.print("C,"); 
   Serial.print(data.humid);
   Serial.print("pt");   
-#endif BME280_ON || SCD30_ON 
+#endif //BME280_ON || SCD30_ON  || CCS811_ON
 #if BME280_ON 
   Serial.print(",");
   Serial.print(data.press/100);
@@ -719,6 +732,7 @@ bool log_data(void)
 void write_oled()
 {
 #if OLED_ON
+  clearedOled = false;
 #if DEBUG
   Serial.println(F("enter: write_oled")); 
 #endif //DEBUG 
@@ -745,7 +759,8 @@ void write_oled()
     oled.print("0");
   }
   oled.print(data.now.second(),DEC);*/ 
-  oled.println();    
+  oled.println();   
+#if BME280_ON || SCD30_ON
   oled.print("Temperature: ");
   oled.print(data.temp);  
   oled.print(" C");
@@ -756,18 +771,21 @@ void write_oled()
   oled.print(" %");
   oled.clearToEOL();  
   oled.println(); 
+#endif // BME280_ON || SCD30_ON
 #if BME280_ON   
   oled.print("Pressure: ");  
   oled.print(data.press/100);  
   oled.print(" hPA");
   oled.clearToEOL();
   oled.println(); 
-#endif
+#endif //BME280_ON
+#if CCS811_ON || SCD30_ON
   oled.print("C02: ");  
   oled.print(data.co2);  
   oled.print(" ppm");
   oled.clearToEOL();
   oled.println(); 
+#endif //CCS811_ON || SCD30_ON
 #if CCS811_ON
   oled.print("TVOC: ");  
   oled.print(data.tvoc); 
@@ -859,11 +877,18 @@ void loop(void)
     }     
   }
 
+
+//clear oled only once when the olde timer expires
 #if OLED_ON   
-  if (!((currentMillis-lastOledMillis <= OLED_TIMEOUT)||(permaOled==true))){
+  if ((!((currentMillis-lastOledMillis <= OLED_TIMEOUT)||(permaOled==true)))&&clearedOled==false){
     oled.clear(); 
+    clearedOled = true;
+#if DEBUG      
+    Serial.println(F("oled.clear"));
+#endif //DEBUG      
   } 
 #endif // OLED_ON  
+
 
 // Now we write data to disk! Don't sync too often - requires 2048 bytes of I/O to SD card
   // which uses a bunch of power and takes time    

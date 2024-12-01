@@ -7,7 +7,6 @@
 //I put a lot of compiler switches to test different combinations which made the code a bit messy. Sorry for that.
 
 // Sources:
-// Dallas DS1820 sensor: https://create.arduino.cc/projecthub/TheGadgetBoy/ds18b20-digital-temperature-sensor-and-arduino-9cc806 / https://www.arduino.cc/reference/en/libraries/onewire/
 // Adafruit Arduino datalogging shield: https://learn.adafruit.com/adafruit-data-logger-shield/overview
 // Light & Temp logger: https://github.com/adafruit/Light-and-Temp-logger
 // CJMCU-811 CO2/TVOC sensor board with CCS811 air quality sensor: https://iotspace.dev/arduino-co2-sensor-im-eigenbau-ccs811-sensor/
@@ -18,8 +17,6 @@
 // SCD30 Sensirion CO2/Temperature/Humidity sensor module 
 
 // Libraries:
-// DallasTemperature (Miles Burton)
-// OneWire (Jim Studt)
 // OneButton (Matthias Hertel)
 // RTClib (Adafruit)
 // SSD1306Ascii (Bill Greiman)
@@ -27,6 +24,7 @@
 // Adafruit BME280 Library (Adafruit)
 // Grove - Laser PM2.5 Sensor HM3301 (Seeed Studio)
 // Adafruit SCD30 Library (Adafruit)
+// RGBLed (Wilmouth Steven)
 
 // Notes:
 // - Run CCS811 for 20 minutes, before accurate readings are generated
@@ -38,11 +36,8 @@
 
 /********************************************************************/
 // First we include the libraries
-#include <OneWire.h> //Dallas DS1820 Sensor https://github.com/PaulStoffregen/OneWire 
-#include <DallasTemperature.h> //https://github.com/milesburton/Arduino-Temperature-Control-Library/blob/master/DallasTemperature.h
 //#include <SPI.h>
 #include <SD.h> //https://github.com/arduino-libraries/SD/blob/master/src/SD.h
-//#include <Wire.h>
 #include "RTClib.h" //https://github.com/adafruit/RTClib/blob/master/src/RTClib.h
 #include "Adafruit_CCS811.h" //https://github.com/sparkfun/SparkFun_CCS811_Arduino_Library/blob/master/src/SparkFunCCS811.h
 #include "Adafruit_BME280.h" //https://github.com/adafruit/Adafruit_BME280_Library
@@ -53,15 +48,16 @@
 #include <util/parity.h>  //https://wolles-elektronikkiste.de/dcf77-funkuhr
 #include "Adafruit_SCD30.h" //https://github.com/adafruit/Adafruit_SCD30/
 #include <MemoryFree.h> //https://github.com/mpflaga/Arduino-MemoryFree
+#include <RGBLed.h> // https://github.com/wilmouths/RGBLed 
 
 // how many milliseconds between grabbing data and logging it. 1000 ms is once a second
-#define LOG_INTERVAL 5000 //60000 mills between entries (reduce to take more/faster data)
+#define LOG_INTERVAL 60000 //60000 mills between entries (reduce to take more/faster data)
 
 // how many milliseconds before writing the logged data permanently to disk
 // set it to the LOG_INTERVAL to write each time (safest)
 // set it to 10*LOG_INTERVAL to write all data every 10 datareads, you could lose up to 
 // the last 10 reads if power is lost but it uses less power and is much faster!
-#define SYNC_INTERVAL 5000 //60000 mills between calls to flush() - to write data to the card
+#define SYNC_INTERVAL 60000 //60000 mills between calls to flush() - to write data to the card
 uint32_t syncTime = 0; // time of last sync()
 #define CSVSEP ","
 
@@ -70,30 +66,53 @@ uint32_t syncTime = 0; // time of last sync()
 
 #define DEBUG 0
 
-// the digital pins that connect to the LEDs if jumpers on board are set
-#define LEDMODE 0
-#if LEDMODE
- #define greenLedPin 4
- #define redLedPin 5
-#endif //LEDMODE
+#define PIN_00 0 //
+#define PIN_01 1 //
+#define PIN_02 2 //
+#define PIN_03 3 //~DCF77
+#define PIN_04 4 //
+#define PIN_05 5 //~RGB PIN_BLUE
+#define PIN_06 6 //~RGB PIN_GREEN
+#define PIN_07 7 //
+#define PIN_08 8 //
+#define PIN_09 9 //~RGB PIN_RED
+#define PIN_10 10 //~SD CS
+#define PIN_11 11 //~SD MOSI
+#define PIN_12 12 //SD MISO 
+#define PIN_13 13 //SD SCK 
+
+#define PIN_A0 0 //LDR
+#define PIN_A1 1
+#define PIN_A2 2
+#define PIN_A3 3
+#define PIN_A4 4 //I2C SDA
+#define PIN_A5 5 //I2C SCL
+
+//RGB LED
+#define RGBLED 1
+#define PIN_RED PIN_09
+#define PIN_GREEN PIN_06
+#define PIN_BLUE PIN_05 
+#if RGBLED
+ RGBLed led(PIN_RED, PIN_GREEN, PIN_BLUE, RGBLed::COMMON_CATHODE);
+#endif //RGBLED
 
 //DCF77
 #define DCF77 0
 #if DCF77
- byte dcfInterruptPin=3;
+ byte dcfInterruptPin = PIN_03;
  volatile unsigned long dcfLastInt = 0;
  volatile unsigned long long dcfCurrentBuf = 0;
  volatile byte dcfBufCounter;
 #endif //DCF77
 
 // The light sensor
-#define photocellPin 0 // analog 0
+#define photocellPin PIN_A0 // analog 0
 
 // SSD1306 Display
 #define OLED_ON 1 // eneable / disable display support
 #if OLED_ON
  #define I2C_ADDRESS 0x3C 
- //#define RST_PIN -1
  #define OLED_TIMEOUT 12000
  SSD1306AsciiAvrI2c oled; //I2C 0x3C
  bool permaOled = false;
@@ -104,25 +123,10 @@ uint32_t syncTime = 0; // time of last sync()
 // Setup logging shield (RTC, SDCARD)
 #define SD_ON 1 //enable/disable SD logging (does not affect RTC!)
 RTC_DS1307 RTC; // define the Real Time Clock object. 0x68 I2C address for DS1307
-const int chipSelect = 10;// for the data logging shield, we use digital pin 10 for the SD cs line
+const int chipSelect = PIN_10;// for the data logging shield, we use digital pin 10 for the SD cs line
 #if SD_ON 
 File logfile; // the logging file
 #endif //SD_ON  
-
-#define DS1820_ON 0 //enable disable Dallas oneWire temperature sensor (currently unused coz onewire takes too much mem)
-#if DS1820_ON
- /********************************************************************/
- // Data wire is plugged into pin 2 on the Arduino 
- #define ONE_WIRE_BUS 9
- /********************************************************************/
- // Setup a oneWire instance to communicate with any OneWire devices  
- // (not just Maxim/Dallas temperature ICs)  
- OneWire oneWire(ONE_WIRE_BUS); 
- /********************************************************************/
- // Pass our oneWire reference to Dallas Temperature. 
- DallasTemperature sensors(&oneWire);
- /********************************************************************/ 
-#endif // DS1820_ON
 
 #define CCS811_ON 0
 #if CCS811_ON
@@ -169,9 +173,6 @@ struct sensor_data{
   uint16_t pm25atm;
   uint16_t pm10atm;
 #endif //HM3301_ON
-#if DS1820_ON  
-  float temperatureC; 
-#endif // DS1820_ON 
 };
 
 sensor_data data = {};
@@ -189,20 +190,22 @@ void setup(void)
   Serial.begin(57600); 
   Serial.println(F("Bootup..."));
 
+#if RGBLED
+ led.brightness(20); // range 0-100(%)
+ led.setColor(RGBLed::CYAN);
+#else //disable LED PIOs
+ pinMode(PIN_RED, HIGH);
+ pinMode(PIN_GREEN, HIGH);
+ pinMode(PIN_BLUE, HIGH);
+#endif //RGBLED
+
 #if OLED_ON
   //Init SSD1306 Display
-  //oled.begin(&Adafruit128x64, I2C_ADDRESS, RST_PIN);
   oled.begin(&Adafruit128x64, I2C_ADDRESS);
   oled.setFont(Adafruit5x7);
   oled.clear();
   oled.println(F("Bootup..."));
 #endif // OLED_ON
-
-  // use debugging LEDs
-#if LEDMODE  
-  pinMode(redLedPin, OUTPUT);
-  pinMode(greenLedPin, OUTPUT);
-#endif //LEDMODE
 
 #if DCF77
   pinMode(dcfInterruptPin, INPUT);
@@ -220,8 +223,7 @@ void setup(void)
   // output, even if you don't use it:
   pinMode(chipSelect, OUTPUT);
 
-  // connect to RTC
-  //Wire.begin();  
+  // connect to RTC 
   if (!RTC.begin()) {
 #if SD_ON          
     logfile.println(F("RTC failed"));
@@ -279,11 +281,6 @@ void setup(void)
   Serial.print(F("Logging to: "));
   Serial.println(filename);
 #endif //SD_ON  
-
-#if DS1820_ON
- // Start up the DS1820 OneWire library for the DS1820 temperature sensor 
-  sensors.begin(); 
-#endif // DS1820_ON
 
 #if CCS811_ON
   //Init CCS811 (CO2) via I2C
@@ -432,7 +429,7 @@ Serial.println(F(""));
 #endif //#if OLED_ON 
 
 #if OLED_ON
-  delay(2000); // wait a bit longer before fetching data and avoid zero measurements
+  delay(3000); // wait a bit longer before fetching data and avoid zero measurements
   oled.clear();
 #if DEBUG      
   Serial.println(F("oled.clear"));
@@ -446,6 +443,9 @@ Serial.println(F(""));
     while(1);
 #endif 
   }
+#if RGBLED
+  update_rgbled();
+#endif //RGBLED  
 #if OLED_ON    
     if ((currentMillis-lastOledMillis <= OLED_TIMEOUT)||(permaOled==true)){
       write_oled();        
@@ -482,12 +482,6 @@ bool fetch_data(void)
 #endif //DEBUG   
 
   // fetch sensordata
-#if DS1820_ON
-  // Dallas DS1820 Temperature Sensor (request temperatures of all devices on the onewire-bus and get temperature of fist found sensor)
-  sensors.requestTemperatures(); 
-  data.temperatureC = sensors.getTempCByIndex(0); //currently 
-#endif // DS1820_ON
-
 #if DEBUG
   Serial.println(F("Read LDR")); 
 #endif //DEBUG   
@@ -856,6 +850,50 @@ void longPress()
 }
 #endif // OLED_ON 
 
+#if RGBLED
+void update_rgbled(void)
+{
+//update brightness depending on LDR data
+ if(data.light>900){
+  led.brightness(30);
+ }
+ else if(data.light>800){
+  led.brightness(25);
+ }
+ else if(data.light>600){
+  led.brightness(20);
+ }
+  else if(data.light>400){
+  led.brightness(15);
+ }
+ else if(data.light>200){
+  led.brightness(10);
+ }
+ else if(data.light>100){
+  led.brightness(5);
+ }
+  else{// lowest possible brightness
+  led.brightness(3); //below brightness of 3% orange is not working
+ }
+
+//update color  
+#if SCD30_ON
+ if(data.co2<600){
+  led.setColor(RGBLed::GREEN);
+ }
+ else if(data.co2<1000){
+  led.setColor(RGBLed::YELLOW); //YELLOW is actually "light green"
+ }
+ else if(data.co2<1500){
+  led.setColor(255,40,0); //ORANGE
+ }
+ else{
+  led.setColor(RGBLed::RED);
+ }
+#endif //SCD30_ON
+}
+#endif //RGBLED
+
 void loop(void) 
 { 
   button.tick();
@@ -863,6 +901,9 @@ void loop(void)
   if(currentMillis-lastLogMillis >= LOG_INTERVAL){
     if(fetch_data()){
         log_data(); 
+#if RGBLED        
+        update_rgbled();
+#endif //RGBLED        
         lastLogMillis = currentMillis;  
 #if OLED_ON    
         if ((currentMillis-lastOledMillis <= OLED_TIMEOUT)||(permaOled==true)){
@@ -921,9 +962,6 @@ void DCF77_ISR(){
     }
   }
   else{
-#if LEDMODE    
-    digitalWrite(redLedPin, !digitalRead(redLedPin)); // toogle LED whenever we receive an interrupt
-#endif //LEDMODE    
     if(dur>150){
       dcfCurrentBuf |= ((unsigned long long)1<<dcfBufCounter);
     }
@@ -950,9 +988,6 @@ void dcfEvaluateSequence(){
            + parity_even_bit(dcf77Month) + parity_even_bit(dcf77Year))%2) == parityBitDate){
         RTC.adjust(DateTime(rawByteToInt(dcf77Year) + 2000, rawByteToInt(dcf77Month), 
             rawByteToInt(dcf77DayOfMonth), rawByteToInt(dcf77Hour), rawByteToInt(dcf77Minute), 0));
-#if LEDMODE
-        digitalWrite(greenLedPin, !digitalRead(greenLedPin)); // toogle LED whenever we set the time
-#endif //LEDMODE
        }
     }
   }
@@ -967,11 +1002,5 @@ void error(char *str)
 {
   Serial.print(F("error: "));
   Serial.println(str);
-  
-  // red LED indicates error
-#if LEDMODE  
-  digitalWrite(redLedPin, HIGH);
-#endif //LEDMODE
-
   while(1);
 }

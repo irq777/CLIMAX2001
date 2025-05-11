@@ -41,11 +41,13 @@
 #include "RTClib.h" //https://github.com/adafruit/RTClib/blob/master/src/RTClib.h
 #include "Adafruit_CCS811.h" //https://github.com/sparkfun/SparkFun_CCS811_Arduino_Library/blob/master/src/SparkFunCCS811.h
 #include "Adafruit_BME280.h" //https://github.com/adafruit/Adafruit_BME280_Library
+#if defined(__AVR__) || defined(TWSR)
 #include "SSD1306Ascii.h" //https://github.com/greiman/SSD1306Ascii
 #include "SSD1306AsciiAvrI2c.h" //https://github.com/greiman/SSD1306Ascii
+#include <util/parity.h>  //https://wolles-elektronikkiste.de/dcf77-funkuhr
+#endif
 #include <OneButton.h>
 #include <Seeed_HM330X.h> //https://github.com/Seeed-Studio/Seeed_PM2_5_sensor_HM3301
-#include <util/parity.h>  //https://wolles-elektronikkiste.de/dcf77-funkuhr
 #include "Adafruit_SCD30.h" //https://github.com/adafruit/Adafruit_SCD30/
 #include <MemoryFree.h> //https://github.com/mpflaga/Arduino-MemoryFree
 #include <RGBLed.h> // https://github.com/wilmouths/RGBLed 
@@ -135,18 +137,19 @@ Adafruit_CCS811 ccs; // I2C 0x5A
 #endif //CCS811_ON
 
 //BME280 Humidity/Temp/Barometer Sensor
-#define BME280_ON 0
+#define BME280_ON 1
 #if BME280_ON
   //BME280 Humidity/Temp/Barometer Sensor
   Adafruit_BME280 bme; // I2C 0x76
-  #define BME_TEMP_OFFSET -0.3 //temperature offset correction
+  #define BME_TEMP_OFFSET -3.3 //temperature offset correction 
 #endif //BME280_ON
 
 #define SCD30_ON 1
 #if SCD30_ON
   // Sensirion SCD30 CO2/Temperature/Humidity
   Adafruit_SCD30  scd30; // I2C 0x61
-  #define SCD30_TEMP_OFFSET 260 // temperature offset correction. value is always subtracted. (e.g. +3,45°C is 345)
+  #define SCD30_TEMP_OFFSET 460 // temperature offset correction. value is always subtracted(e.g. -3,45°C is 345). It takes about ~10 minutes after power on until it's fully applied. Probably to compensate the slow warmup of the sensors PCB.  
+  // Offsets experimatal evaluated at ~27°C: value for SN4315891: 340 / value for SN3793532: 120
   #define SCD30_MEASUREMENT_INTERVAL 10 // from 2-1800 seconds 
 #endif //SCD30_ON
 
@@ -275,8 +278,12 @@ void setup(void)
       logfile = SD.open(filename, FILE_WRITE); 
     }
 */
-  if (! logfile) {
-    error("couldnt create file");
+  if (!logfile) {
+    error("Couldn't create logfile");
+#if OLED_ON    
+    oled.println();
+    oled.print("Couldn't create logfile");
+#endif 
   }
   Serial.print(F("Logging to: "));
   Serial.println(filename);
@@ -300,6 +307,7 @@ void setup(void)
     while (1);
   } 
   Serial.println(F("sensor initilized."));
+  bme.setTemperatureCompensation(BME_TEMP_OFFSET); // Sets a value to be added to each temperature reading. This adjusted temperature is used in pressure and humidity readings.
 #endif // BME280_ON  
 
 #if SCD30_ON
@@ -321,9 +329,11 @@ void setup(void)
     Serial.println(F("Failed to set measurement interval"));
     while(1){ delay(10);}
   } */ 
+#if DEBUG  
   Serial.print(F("Measurement Interval: "));
   Serial.print(scd30.getMeasurementInterval());
   Serial.println(F(" seconds"));
+#endif //DEBUG
 
   // Set an altitude offset in meters above sea level.
   // Offset value stored in non-volatile memory of SCD30. Please uncomment after set once.
@@ -332,9 +342,11 @@ void setup(void)
     Serial.println("Failed to set altitude offset");
     while(1){ delay(10);}
   }*/
+#if DEBUG   
   Serial.print(F("Altitude offset: "));
   Serial.print(scd30.getAltitudeOffset());
   Serial.println(F(" meters"));
+#endif //DEBUG
 
    //Set a temperature offset in hundredths of a degree celcius.
    //Value is subtracted from thr reading assuming that the function is intended to compensating the self-heating of the PCB.
@@ -344,9 +356,11 @@ void setup(void)
      Serial.println(F("Failed to set temperature offset"));
      while(1){ delay(10);}
    }
+#if DEBUG    
   Serial.print(F("Temperature offset: "));
   Serial.print((float)scd30.getTemperatureOffset()/100.0);
   Serial.println(F(" degrees C"));
+#endif //DEBUG
 
   /*** Restart continuous measurement with a pressure offset from 700 to 1400 millibar.
    * Giving no argument or setting the offset to 0 will disable offset correction
@@ -355,9 +369,11 @@ void setup(void)
   //   Serial.println("Failed to set ambient pressure offset");
   //   while(1){ delay(10);}
   // }
+#if DEBUG    
   Serial.print(F("Ambient pressure offset: "));
   Serial.print(scd30.getAmbientPressureOffset());
   Serial.println(F(" mBar"));
+#endif //DEBUG
 
 /*** Enable or disable automatic self calibration (ASC).
    * Parameter stored in non-volatile memory of SCD30.
@@ -370,13 +386,13 @@ void setup(void)
   //   Serial.println("Failed to enable or disable self calibration");
   //   while(1) { delay(10); }
   // }
+#if DEBUG  
   if (scd30.selfCalibrationEnabled()) {
     Serial.print(F("Self calibration enabled"));
   } else {
     Serial.print(F("Self calibration disabled"));
   }
 
-#if DEBUG
   Serial.println(freeMemory());
   Serial.print(F("FreeMem after SCD30 init"));
   Serial.println();
@@ -488,11 +504,9 @@ bool fetch_data(void)
   // Light intensity 
   data.light = analogRead(photocellPin); //read light intensity (LDR is nonlinear, so there is no utit for this)
 
-#if BME280_ON
-#if !SCD30_ON //use temp/humid of SCD30 if enabled 
+#if BME280_ON //always use temp/humid of BME280_ON if enabled as SCD30 temperature is not very accurate.
   data.humid = bme.readHumidity();
-  data.temp = bme.readTemperature() + BME_TEMP_OFFSET;
-#endif //!SCD30_ON 
+  data.temp = bme.readTemperature();
 #if DEBUG
   Serial.println(F("Read pressure")); 
 #endif //DEBUG   
@@ -532,8 +546,10 @@ bool fetch_data(void)
     return false; 
    }
    data.co2 = scd30.CO2;
+#if !BME280_ON //only use SCD30 temperature if BME280 is unavailable as SCD30 temperature is not very accurate.
    data.temp = scd30.temperature;
    data.humid = scd30.relative_humidity;
+#endif //!BME280_ON  
   }
   else{
 #if DEBUG
